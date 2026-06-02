@@ -1,0 +1,25 @@
+# Runtime workspace (user inputs & pipeline artifacts)
+workspace/artifacts/
+workspace/inputs/*.md
+workspace/inputs/*.url
+workspace/inputs/env.json
+!workspace/inputs/.gitkeep
+!workspace/artifacts/.gitkeep
+
+# Synced platform skills (generated from skills/)
+.cursor/skills/
+.codex/skills/
+.claude/skills/
+
+# Node / Python
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.local
+
+# OS / IDE
+.DS_Store
+*.log

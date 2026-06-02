@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": ".cursor/hooks/qa-pipeline-on-stop.sh",
+        "loop_limit": 3
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": ".cursor/hooks/qa-pipeline-on-subagent-stop.sh",
+        "loop_limit": 5
+      }
+    ]
+  }
+}

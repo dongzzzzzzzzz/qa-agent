@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa-agent/test-cases",
+  "title": "Test Cases Markdown Artifact",
+  "description": "Markdown file; validated by structure checks in validate-artifacts.py",
+  "type": "object",
+  "properties": {
+    "required_sections": {
+      "type": "array",
+      "items": { "enum": ["# ", "## ", "### ", "| 编号 |"] }
+    },
+    "min_case_count": { "type": "integer", "minimum": 1 }
+  }
+}

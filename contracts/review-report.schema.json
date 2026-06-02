@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa-agent/review-report",
+  "title": "Test Case Review Report",
+  "type": "object",
+  "required": ["version", "reviewed_at", "verdict", "coverage_score", "gaps", "revision_hints"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "reviewed_at": { "type": "string", "format": "date-time" },
+    "verdict": { "enum": ["pass", "fail"] },
+    "coverage_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "coverage_matrix": {
+      "type": "object",
+      "properties": {
+        "functional": { "type": "number" },
+        "boundary": { "type": "number" },
+        "exception": { "type": "number" },
+        "security": { "type": "number" },
+        "compatibility": { "type": "number" }
+      }
+    },
+    "gaps": { "type": "array", "items": { "type": "string" } },
+    "duplicate_cases": { "type": "array", "items": { "type": "string" } },
+    "revision_hints": { "type": "array", "items": { "type": "string" } },
+    "approved_case_count": { "type": "integer", "minimum": 0 },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa-agent/execution-result",
+  "title": "Test Execution Result",
+  "type": "object",
+  "required": ["version", "executed_at", "environment", "summary", "cases"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "executed_at": { "type": "string", "format": "date-time" },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string" },
+        "browser": { "type": "string" },
+        "device": { "type": "string" },
+        "base_url": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total", "pass", "fail", "skip", "block"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "pass": { "type": "integer", "minimum": 0 },
+        "fail": { "type": "integer", "minimum": 0 },
+        "skip": { "type": "integer", "minimum": 0 },
+        "block": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["case_id", "title", "status"],
+        "properties": {
+          "case_id": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "enum": ["pass", "fail", "skip", "block"] },
+          "automatable": { "type": "boolean" },
+          "duration_ms": { "type": "integer" },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "failure_reason": { "type": "string" },
+          "steps_executed": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "has_pass": { "type": "boolean" },
+    "has_fail": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}

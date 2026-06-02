@@ -1,0 +1,17 @@
+---
+description: QA Agent 多阶段流水线 — 子 Agent 按阶段加载对应 Skill 与 agents/*.md 角色
+globs:
+alwaysApply: false
+---
+
+# QA Pipeline Rules
+
+当用户运行 QA 流水线或提到 `prd-analyze`、`case-generate`、`case-review`、`test-execute` 阶段时：
+
+1. 读取 `pipeline.yaml` 与 `workspace/artifacts/00-meta.json` 确认当前阶段
+2. 加载 `agents/<role>.md` 作为角色边界
+3. 加载 `.cursor/skills/<skill>/SKILL.md` 执行具体步骤
+4. 只写入当前阶段规定的 artifact，完成后运行 `python3 scripts/validate-artifacts.py --stage <id>`
+5. 不要跨阶段修改其他 artifact
+
+编排入口：`./orchestrators/cursor/run-pipeline.sh` 或 `cd orchestrators/cursor && npm run pipeline`

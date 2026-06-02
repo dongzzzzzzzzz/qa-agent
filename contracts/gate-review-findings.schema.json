@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa-agent/gate-review-findings",
+  "title": "Gate Review Findings",
+  "type": "object",
+  "required": ["version", "lens", "checked_at", "verdict", "findings"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "lens": {
+      "enum": ["product", "dev", "qa", "red_team", "merge"]
+    },
+    "checked_at": { "type": "string", "format": "date-time" },
+    "verdict": { "enum": ["pass", "fail"] },
+    "summary": { "type": "string" },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check_id", "verdict", "note"],
+        "properties": {
+          "check_id": { "type": "string", "minLength": 1 },
+          "verdict": { "enum": ["pass", "fail", "warn"] },
+          "obligation_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^O-[0-9]{3}$" }
+          },
+          "scenario_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^SC-[0-9]{3}$" }
+          },
+          "root_cause_draft": {
+            "enum": ["prd", "figma", "qa_undercoverage", "assumption_unresolved"]
+          },
+          "audience_draft": { "enum": ["product", "internal"] },
+          "prd_section": { "type": "string" },
+          "note": { "type": "string", "minLength": 5 },
+          "suggestion_draft": { "type": "string", "minLength": 5 }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "verdict": { "const": "fail" } },
+              "required": ["verdict"]
+            },
+            "then": {
+              "required": ["root_cause_draft", "audience_draft", "suggestion_draft"]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

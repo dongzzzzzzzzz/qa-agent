@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa-agent/bug-list",
+  "title": "Bug List Markdown Artifact",
+  "description": "Markdown bug list; validated by structure checks in validate-artifacts.py",
+  "type": "object",
+  "properties": {
+    "required_sections": {
+      "type": "array",
+      "items": { "enum": ["# Bug List", "## BUG-"] }
+    }
+  }
+}

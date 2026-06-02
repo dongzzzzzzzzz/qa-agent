@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa-agent/prd-analysis",
+  "title": "PRD Analysis Artifact",
+  "type": "object",
+  "required": ["version", "project_name", "analyzed_at", "figma_url", "modules", "roles", "main_flows", "risks"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "project_name": { "type": "string", "minLength": 1 },
+    "analyzed_at": { "type": "string", "format": "date-time" },
+    "figma_url": { "type": "string" },
+    "summary": { "type": "string" },
+    "modules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "priority": { "enum": ["P0", "P1", "P2", "P3"] },
+          "figma_nodes": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "permissions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "main_flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "steps"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "steps": { "type": "array", "items": { "type": "string" } },
+          "module_id": { "type": "string" }
+        }
+      }
+    },
+    "boundary_cases": { "type": "array", "items": { "type": "string" } },
+    "exception_cases": { "type": "array", "items": { "type": "string" } },
+    "api_endpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "method": { "type": "string" },
+          "path": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "figma_mapping": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "prd_section": { "type": "string" },
+          "figma_frame": { "type": "string" },
+          "node_id": { "type": "string" }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "severity": { "enum": ["high", "medium", "low"] }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

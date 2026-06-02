@@ -1,0 +1,45 @@
+---
+description: 用户说「帮我跑 QA Agent」「跑 QA Agent」「启动/重跑 QA 流水线」— 默认 IDE 模式编排，禁止擅自 --auto
+alwaysApply: true
+---
+
+# QA Agent 启动（IDE 默认）
+
+## 触发口令
+
+用户说以下任一即进入本规则：
+
+- **帮我跑 QA Agent**（推荐）
+- 跑 QA Agent / 启动 QA 流水线 / 重跑 QA 流水线
+
+## 你必须做的
+
+1. 读 `agents/qa-orchestrator.md`；加载 `skills/qa-pipeline-start/SKILL.md`（若可用）。
+2. **默认 IDE**：运行对应平台编排入口，**不加** `--auto` / `--cli`：
+
+```bash
+# Cursor（本环境）
+./orchestrators/cursor/run-pipeline.sh
+# 产品打回后
+./orchestrators/cursor/run-pipeline.sh --from-stage prd-analyze
+```
+
+Codex / Claude Code 会话中改用 `./orchestrators/codex/` 或 `./orchestrators/claude-code/`（见 `AGENTS.md`）。
+
+3. **Cursor**：`--ide-chain` 激活后由 Hook Task followup 推进；侧栏可见子 Agent。
+4. **gate reject**：停流水线，交 `prd-reject-to-product.md`；不进入 case-generate。
+5. **不要**在主会话代写子 Agent 阶段产物。
+
+## 仅当用户明确要求 CLI 时
+
+用户明确提到：CLI、终端无头、`--auto`、后台跑、不用 IDE。
+
+```bash
+./orchestrators/cursor/run-pipeline.sh --auto
+# 或 --cli（等同 --auto）
+```
+
+## 禁止对用户说
+
+- 「请选择 --auto 或 --ide」
+- 「请手动去 Task 里打开 xxx.md」（应已由 Hook/编排推进）
