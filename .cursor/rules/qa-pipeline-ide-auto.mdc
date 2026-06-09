@@ -1,45 +1,96 @@
 ---
-description: 用户说「帮我跑 QA Agent」「跑 QA Agent」「启动/重跑 QA 流水线」— 默认 IDE 模式编排，禁止擅自 --auto
+description: 用户说启动 QA 流水线时 — 主 Agent 只跑 run-pipeline.sh，子阶段由 Hook 链式 Task 推进（默认，无需用户额外说明）
 alwaysApply: true
 ---
 
-# QA Agent 启动（IDE 默认）
+# QA 流水线（用户视角）
 
-## 触发口令
+用户只说：**「启动 QA 流水线」** / **「重跑 QA 流水线」** / **「跑一下 qa-agent」** 等同类表述。
 
-用户说以下任一即进入本规则：
+## 主 Agent 默认编排（硬约束，无需用户复述）
 
-- **帮我跑 QA Agent**（推荐）
-- 跑 QA Agent / 启动 QA 流水线 / 重跑 QA 流水线
+用户**不必**也说「只用 run-pipeline.sh」「不要手动开三个 Task」——以下即为默认行为：
 
-## 你必须做的
-
-1. 读 `agents/qa-orchestrator.md`；加载 `skills/qa-pipeline-start/SKILL.md`（若可用）。
-2. **默认 IDE**：运行对应平台编排入口，**不加** `--auto` / `--cli`：
+1. **本回合只执行一次**编排脚本（已含 `--ide-chain`，勿加 `--auto`）：
 
 ```bash
-# Cursor（本环境）
 ./orchestrators/cursor/run-pipeline.sh
-# 产品打回后
+# 产品打回或指定起点：
 ./orchestrators/cursor/run-pipeline.sh --from-stage prd-analyze
 ```
 
-Codex / Claude Code 会话中改用 `./orchestrators/codex/` 或 `./orchestrators/claude-code/`（见 `AGENTS.md`）。
+2. 脚本退出后：**立刻在本回合用 Task 工具（generalPurpose）执行第一个阶段**。
 
-3. **Cursor**：`--ide-chain` 激活后由 Hook Task followup 推进；侧栏可见子 Agent。
-4. **gate reject**：停流水线，交 `prd-reject-to-product.md`；不进入 case-generate。
-5. **不要**在主会话代写子 Agent 阶段产物。
+   原因：Shell 工具执行 `run-pipeline.sh` 后，Cursor 主会话不会触发 `stop` 事件，Hook 不会自动注入 followup。因此第一个阶段必须由主 Agent 在脚本退出后直接发起 Task，后续阶段才能由 subagentStop Hook 自动链式推进。
 
-## 仅当用户明确要求 CLI 时
+   具体做法：脚本退出后，读取 `workspace/artifacts/prompts/prd-analyze.md`（或实际 run 目录下的 prompt 路径），用 Task 工具（`generalPurpose`）发起独立子 Agent 执行该 prompt。
 
-用户明确提到：CLI、终端无头、`--auto`、后台跑、不用 IDE。
+3. **第一个阶段之后**：优先由 **subagentStop Hook**（Task 子 Agent 完成后）自动注入下一阶段 Task。若当前环境 Hook 未注入 followup，主 Agent 按“单步推进”兜底：运行 `run-pipeline.sh --from-stage <当前阶段> --to-stage <当前阶段> --no-force` 生成/校验当前阶段，只拉起这个阶段的一个 Task，完成后再让 runner 判定下一阶段。
+
+4. **case-review 内部问题**：Hook **自动**链式 `prd-analyze → case-generate → case-review`（注入 `test-point-rework-to-qa.md`），主 Agent **不要**手动 Task 三连修蓝图。
+
+5. **case-review 四视角**：Hook/runner 会把 `case-review` 展开为 `case-review-prepare → product → qa → testability → red-team → merge`。每个 perspective 都是独立阶段，有自己的 prompt、launch lock、trace、findings 和 `.stage-done-*` marker；主 Agent 不要在一个上下文里代写四份 findings，也不要把四个 perspective 合并成一次 Task。
+
+6. **仅以下时机**主 Agent 介入（check，不代写产物）：
+   - **ORCHESTRATOR_PRD_REJECT** → 交 `prd-reject-to-product.md`，停止
+   - **ORCHESTRATOR_INTERNAL** → 返工达上限或异常；检查是否仍漏测，必要时 `--force --from-stage prd-analyze`
+   - `case-review-orchestration-failed.md` 出现 → 读取失败文件，决定重跑 case-review 或人工介入
+   - **pass** → 可继续 test-execute
+   - 子 Agent 失败 → 查 `workspace/artifacts/logs/`
+
+6. **禁止**在主会话代写 `00-test-blueprint.json`、`02-test-cases.md`、`03-review-report.json` 等阶段产物。
+
+## Hook followup 收到后的正确处理（最常见错误点）
+
+当 Cursor Hook 注入 followup 文案，你的主会话看到如下消息时：
+
+> 【QA 流水线 · prd-analyze】请立即用 **Task 子 Agent**（generalPurpose）执行：`workspace/artifacts/prompts/prd-analyze.md`
+
+**你必须做的事**：调用 `Task` 工具（`generalPurpose`），把 prompt 文件路径作为 Task 的输入内容，让 Cursor 在侧栏起一个**独立子 Agent** 来执行。
+
+**你不能做的事**：
+- 直接读取 prompt 文件然后自己执行里面的步骤——这样产物是主会话写的，不是子 Agent 写的，侧栏看不到独立执行过程
+- 代写 `00-test-blueprint.json`、`02-test-cases.md`、`03-review-report.json` 等任何阶段产物
+- 用 Bash 工具执行 Python 脚本来生成蓝图/用例/评审报告
+
+为什么这个区别重要：子 Agent 在独立上下文里执行，有完整的 PRD 全文阅读、义务推断、知识库选择等推理链，主会话执行没有这些独立推理过程，产物质量不可控，而且无法审计。
+
+## case-review 后
+
+- **四视角编排中**：Hook 按 case-review 内部阶段逐个注入 Task；`case-review-merge` 由 runner 自动合并并校验。
+- **内部问题**：子 Agent 循环返工直至清零或 `max_retries`；你再 check。
+- **仅剩产品问题**：交产品打回，停止。
+- **pass**：Hook 推进 test-execute。
+
+## --from-stage 的正确用法
+
+`--from-stage` 的语义是「在**当前 run** 里从某个阶段继续」，不是创建新 run。
 
 ```bash
-./orchestrators/cursor/run-pipeline.sh --auto
-# 或 --cli（等同 --auto）
+# 正确：从 case-review 继续当前 run
+./orchestrators/cursor/run-pipeline.sh --from-stage case-review
+
+# 正确：产品改完 PRD 后，强制重跑整个流程（创建新 run）
+./orchestrators/cursor/run-pipeline.sh --force
+
+# 错误：这会误创一个空 run，然后 gate 失败
+./orchestrators/cursor/run-pipeline.sh --from-stage case-generate  # 不要这样用
 ```
+
+只有 `--force` 才会创建新 run 目录。不带 `--force` 的 `--from-stage` 总是在当前 run 里继续。
+
+## 硬约束（脚本层）
+
+- 无 `QA_PIPELINE_ALLOW_CLI=1` 且无 `--allow-cli` 时，`--auto` 会 **exit 1**（见 `qa-pipeline-no-auto-cli.mdc`）。
 
 ## 禁止对用户说
 
+- 「请用 Task 打开 xxx.md」
 - 「请选择 --auto 或 --ide」
-- 「请手动去 Task 里打开 xxx.md」（应已由 Hook/编排推进）
+- 「你需要说不要手动开三个 Task」（默认已是 Hook 链，不要甩锅给用户）
+
+## 仅当用户明确要求无头 CLI 时
+
+```bash
+QA_PIPELINE_ALLOW_CLI=1 ./orchestrators/cursor/run-pipeline.sh --auto --allow-cli
+```

@@ -1,0 +1,37 @@
+---
+description: 跑 QA 流水线时禁止擅自使用 Cursor --auto CLI
+alwaysApply: true
+---
+
+# QA 流水线启动（硬约束）
+
+用户说「跑 QA 流水线」「启动流水线」「重跑流水线」且**未**明确要求 CLI/无头/后台时：
+
+## 必须
+
+```bash
+./orchestrators/cursor/run-pipeline.sh
+# 或
+./orchestrators/cursor/run-pipeline.sh --from-stage prd-analyze
+# 需要清产物时加 --force，不要加 --auto
+```
+
+默认已是 `--ide-chain`：Hook + Task followup，子 Agent 在侧栏可见。
+
+## 禁止
+
+- `./orchestrators/cursor/run-pipeline.sh --auto`（无 `--allow-cli` / 无 `QA_PIPELINE_ALLOW_CLI=1`）
+- `python3 scripts/pipeline_runner.py --platform cursor --auto`
+- 用 `cursor agent -p` 代替 ide-chain
+
+## 仅当用户明确要求 CLI 时
+
+```bash
+QA_PIPELINE_ALLOW_CLI=1 ./orchestrators/cursor/run-pipeline.sh --auto --allow-cli
+```
+
+## 禁止在主会话代写
+
+唯一测试蓝图、`03-review-report.json`、`prd-reject-to-product.md` 等阶段产物。
+
+详见 `agents/qa-orchestrator.md`、`.agents/skills/qa-pipeline-start/SKILL.md`。

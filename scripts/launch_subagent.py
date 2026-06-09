@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shutil
 import subprocess
@@ -14,7 +13,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PROMPTS = ROOT / "workspace" / "artifacts" / "prompts"
 LOGS = ROOT / "workspace" / "artifacts" / "logs"
-DEFAULT_LOG_CHAR_LIMIT = 200_000
 
 
 def wrap_launch_prompt(stage_id: str, prompt_path: Path) -> str:
@@ -50,55 +48,6 @@ def check_platform(platform: str) -> tuple[bool, str]:
     return False, f"未知平台: {platform}"
 
 
-def check_auth_status(platform: str) -> tuple[bool, str]:
-    ok, msg = check_platform(platform)
-    if not ok:
-        return ok, msg
-    try:
-        if platform == "cursor":
-            if os.environ.get("CURSOR_API_KEY"):
-                return True, "CURSOR_API_KEY 已设置"
-            r = subprocess.run(
-                ["cursor", "agent", "status"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-            out = (r.stdout or "") + (r.stderr or "")
-            if r.returncode == 0 and "not logged" not in out.lower():
-                return True, "cursor agent CLI 已登录"
-            return False, "Cursor CLI 未登录；请运行 cursor agent login"
-        if platform == "codex":
-            r = subprocess.run(
-                ["codex", "doctor", "--json"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            try:
-                data = json.loads(r.stdout or "{}")
-                auth = (data.get("checks") or {}).get("auth.credentials") or {}
-                if auth.get("status") == "ok":
-                    return True, auth.get("summary") or "codex auth is configured"
-            except json.JSONDecodeError:
-                pass
-            return False, "Codex CLI auth check failed; run codex login"
-        if platform == "claude-code":
-            r = subprocess.run(
-                ["claude", "auth", "status"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-            out = (r.stdout or "") + (r.stderr or "")
-            if r.returncode == 0 and "not" not in out.lower():
-                return True, "claude auth status passed"
-            return False, "Claude Code auth check failed; run claude auth login"
-    except Exception as exc:
-        return False, f"auth check failed: {exc}"
-    return False, f"未知平台: {platform}"
-
-
 def build_cmd(platform: str, stage_id: str, prompt_path: Path, model: str | None) -> list[str]:
     wrapper = wrap_launch_prompt(stage_id, prompt_path)
     full_prompt_path = prompt_path.resolve()
@@ -115,6 +64,9 @@ def build_cmd(platform: str, stage_id: str, prompt_path: Path, model: str | None
         ]
         if model:
             cmd.extend(["--model", model])
+        api_key = os.environ.get("CURSOR_API_KEY")
+        if api_key:
+            cmd.extend(["--api-key", api_key])
         cmd.append(wrapper)
         return cmd
 
@@ -145,28 +97,6 @@ def build_cmd(platform: str, stage_id: str, prompt_path: Path, model: str | None
     raise ValueError(platform)
 
 
-def redact_cmd(cmd: list[str]) -> list[str]:
-    redacted: list[str] = []
-    skip_next = False
-    for part in cmd:
-        if skip_next:
-            redacted.append("***REDACTED***")
-            skip_next = False
-            continue
-        redacted.append(part)
-        if part in ("--api-key", "--header"):
-            skip_next = True
-    return redacted
-
-
-def truncate_log(text: str, limit: int) -> str:
-    if len(text) <= limit:
-        return text
-    head = text[: limit // 2]
-    tail = text[-limit // 2 :]
-    return f"{head}\n\n...[truncated {len(text) - limit} chars]...\n\n{tail}"
-
-
 def stdin_payload(platform: str, stage_id: str, prompt_path: Path) -> str | None:
     if platform != "codex":
         return None
@@ -194,7 +124,6 @@ def launch(
 
     LOGS.mkdir(parents=True, exist_ok=True)
     log_path = LOGS / f"{platform}-{stage_id}.log"
-    summary_path = LOGS / f"{platform}-{stage_id}.summary.json"
 
     cmd = build_cmd(platform, stage_id, prompt_path, model)
     print(f"[launch] platform={platform} stage={stage_id}")
@@ -206,11 +135,9 @@ def launch(
     env["QA_PIPELINE_STAGE"] = stage_id
 
     stdin_data = stdin_payload(platform, stage_id, prompt_path)
-    log_limit = int(os.environ.get("QA_AGENT_LOG_CHAR_LIMIT", str(DEFAULT_LOG_CHAR_LIMIT)))
-    full_logs = os.environ.get("QA_AGENT_LOG_FULL") == "1"
     try:
         with log_path.open("w", encoding="utf-8") as logf:
-            logf.write(f"command: {redact_cmd(cmd)}\n\n")
+            logf.write(f"command: {cmd}\n\n")
             logf.flush()
             proc = subprocess.run(
                 cmd,
@@ -221,30 +148,11 @@ def launch(
                 capture_output=True,
                 timeout=timeout_sec,
             )
-            stdout = proc.stdout or ""
-            stderr = proc.stderr or ""
             logf.write("=== stdout ===\n")
-            logf.write(stdout if full_logs else truncate_log(stdout, log_limit))
+            logf.write(proc.stdout or "")
             logf.write("\n=== stderr ===\n")
-            logf.write(stderr if full_logs else truncate_log(stderr, log_limit))
+            logf.write(proc.stderr or "")
             logf.write(f"\n=== exit code: {proc.returncode} ===\n")
-            summary_path.write_text(
-                json.dumps(
-                    {
-                        "platform": platform,
-                        "stage": stage_id,
-                        "prompt": str(prompt_path.relative_to(ROOT)),
-                        "log": str(log_path.relative_to(ROOT)),
-                        "exit_code": proc.returncode,
-                        "stdout_chars": len(stdout),
-                        "stderr_chars": len(stderr),
-                        "truncated": not full_logs and (len(stdout) > log_limit or len(stderr) > log_limit),
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
         if proc.stdout:
             print(proc.stdout[-4000:] if len(proc.stdout) > 4000 else proc.stdout)
         if proc.returncode != 0 and proc.stderr:
@@ -269,9 +177,9 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.check:
-        ok, msg = check_auth_status(args.platform)
+        ok, msg = check_platform(args.platform)
         print(f"{'OK' if ok else 'FAIL'}: {msg}")
-        if args.platform == "cursor" and not ok:
+        if args.platform == "cursor":
             if os.environ.get("CURSOR_API_KEY"):
                 print("OK: CURSOR_API_KEY 已设置（可用于 --auto）")
             else:

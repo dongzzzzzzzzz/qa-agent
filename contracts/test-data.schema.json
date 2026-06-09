@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa-agent/test-data",
+  "title": "QA Agent Test Data",
+  "description": "prd-analyze 阶段产出，供 case-generator 直接消费，避免用例生成时凭空编造测试数据",
+  "type": "object",
+  "required": ["version", "project_name", "created_at", "scenarios"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "project_name": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["scenario_id", "data_source"],
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "pattern": "^S-[0-9]{2}\\.[0-9]{2}\\.[0-9]{2}$"
+          },
+          "url": {
+            "type": "string",
+            "description": "测试入口 URL，browser 通道必填"
+          },
+          "api_fixture": {
+            "type": "object",
+            "description": "api_intercept 通道的 mock 数据，key 为字段名，value 为测试值"
+          },
+          "boundary_values": {
+            "type": "array",
+            "description": "边界值列表，格式：字段名=值",
+            "items": { "type": "string" }
+          },
+          "precondition_data": {
+            "type": "array",
+            "description": "前置条件需要的数据（账号、房源 ID 等）",
+            "items": { "type": "string" }
+          },
+          "data_source": {
+            "type": "string",
+            "description": "数据来源说明，必须引用 PRD 段落或 Figma frame"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -9,8 +9,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ACTIVE = ROOT / "workspace" / "artifacts" / ".qa-pipeline-active"
-REJECT_NOTIFY = ROOT / "workspace" / "artifacts" / ".orchestrator-prd-reject-notified"
+
+def _artifacts_dir() -> Path:
+    """Resolve artifacts dir via env vars (set by pipeline_runner when using --project)."""
+    import os
+    if os.environ.get("QA_WORKSPACE"):
+        return Path(os.environ["QA_WORKSPACE"])
+    return ROOT / "workspace" / "artifacts"
+
+ACTIVE = _artifacts_dir() / ".qa-pipeline-active"
+REJECT_NOTIFY = _artifacts_dir() / ".orchestrator-prd-reject-notified"
 TTL_SECONDS = 4 * 3600
 
 
@@ -72,11 +80,11 @@ def is_active() -> bool:
 
 
 def gate_reject_fingerprint() -> str:
-    report = ROOT / "workspace" / "artifacts" / "00-prd-gate-report.json"
+    report = ROOT / "workspace" / "artifacts" / "03-review-report.json"
     if not report.exists():
         return ""
     data = json.loads(report.read_text(encoding="utf-8"))
-    if data.get("verdict") != "reject":
+    if data.get("verdict") not in ("reject", "fail"):
         return ""
     rk = data.get("reject_kind") or "product"
     product_issues = [
@@ -89,7 +97,7 @@ def gate_reject_fingerprint() -> str:
         {
             "verdict": "reject",
             "reject_kind": rk,
-            "checked_at": data.get("checked_at"),
+            "reviewed_at": data.get("reviewed_at") or data.get("checked_at"),
             "issue_ids": ids,
         },
         ensure_ascii=False,
@@ -107,11 +115,11 @@ def should_notify_reject() -> bool:
 
 
 def gate_internal_reject() -> bool:
-    report = ROOT / "workspace" / "artifacts" / "00-prd-gate-report.json"
+    report = ROOT / "workspace" / "artifacts" / "03-review-report.json"
     if not report.exists():
         return False
     data = json.loads(report.read_text(encoding="utf-8"))
-    if data.get("verdict") != "reject":
+    if data.get("verdict") not in ("reject", "fail"):
         return False
     rk = data.get("reject_kind") or "product"
     if rk == "internal":

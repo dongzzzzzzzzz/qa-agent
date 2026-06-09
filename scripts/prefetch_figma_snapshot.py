@@ -90,7 +90,7 @@ def main() -> int:
     print(OUT)
     if snapshot["placeholder_detected"]:
         print(
-            "WARN: placeholder figma URL — set delivery_coverage.figma.read_complete=false in blueprint",
+            "WARN: placeholder figma URL — record the missing design impact in blueprint open_questions[]",
             file=sys.stderr,
         )
         return 0

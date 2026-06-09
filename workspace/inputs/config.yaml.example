@@ -1,5 +1,38 @@
-# 复制为 config.yaml 后按需修改
+# 复制为 config.yaml 后按项目修改；prd-analyze / case-generate 子 Agent 须先读此文件
+
 project_name: my-project
+
+# 用例文档（workspace/artifacts/02-test-cases.md）
+test_case_id_format: TC-{seq:03d}
+generate_xmind_section: false
+
+# GT 业务知识库。脚本只生成目录清单，最终由 prd-analyze 子 Agent
+# 结合 PRD/Figma 自主选择相关文档，作为测试点补充参考。
+knowledge_base:
+  enabled: true
+  path: bundled/knowledge_base
+  max_business_docs: 8
+  max_historical_cases: 5
+  include_historical_cases: true
+  policy: |
+    知识库只用于补充业务背景、历史规则、模块术语和常见风险。
+    当知识库与本次 PRD/Figma 冲突时，以本次 PRD/Figma 为准；
+    冲突本身应作为 case-review 的风险证据，而不是由 prd-analyze 自行裁决。
+    知识库选择由 prd-analyze 子 Agent 决策，脚本不得作为最终选择依据。
+
+# 不测类型 / 模块（蓝图不得生成对应 scenarios）
+exclude_test_types:
+  - 性能
+exclude_module_ids:
+  - MOD-NFR
+exclude_topics:
+  - 弱网
+  - 网络异常
+  - 性能基线
+
+test_scope_notes: |
+  在此写明本项目不测范围，例如：不测性能、弱网、埋点报表等。
+
 generate_xmind: false
 browser_matrix:
   - chromium

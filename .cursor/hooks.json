@@ -4,13 +4,13 @@
     "stop": [
       {
         "command": ".cursor/hooks/qa-pipeline-on-stop.sh",
-        "loop_limit": 3
+        "loop_limit": null
       }
     ],
     "subagentStop": [
       {
         "command": ".cursor/hooks/qa-pipeline-on-subagent-stop.sh",
-        "loop_limit": 5
+        "loop_limit": null
       }
     ]
   }

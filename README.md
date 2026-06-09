@@ -19,8 +19,6 @@ cp workspace/inputs/config.yaml.example workspace/inputs/config.yaml
 cp workspace/inputs/env.json.example workspace/inputs/env.json
 ```
 
-`env.json` 只放测试环境信息（如 `base_url`、浏览器、设备），不要放 token、password、API key 等密钥。
-
 ### 2. 初始化环境（首次）
 
 ```bash
@@ -34,21 +32,13 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ./scripts/sync-skills.sh
 ```
 
-### 3. 运行流水线
+### 3. 运行流水线（用户只需这一条）
 
-在 **Cursor / Codex / Claude Code** 的 Composer 里说：
+```bash
+./orchestrators/cursor/run-pipeline.sh
+```
 
-> **帮我跑 QA Agent**
-
-主 Agent 会按 [AGENTS.md](AGENTS.md) 与 [qa-pipeline-start](skills/qa-pipeline-start/SKILL.md) 执行；**默认 IDE 模式**，不会擅自用 CLI。
-
-| 平台 | 默认命令（无参数 = `--ide-chain`） |
-|------|-----------------------------------|
-| Cursor | `./orchestrators/cursor/run-pipeline.sh` |
-| Codex | `./orchestrators/codex/run-pipeline.sh` |
-| Claude Code | `./orchestrators/claude-code/run-pipeline.sh` |
-
-**默认行为（`--ide-chain`）**：Cursor 下 Hook 用 **Task followup** 链式推进，子 Agent **侧栏可见**。Codex/Claude Code 无 Cursor Hook，属于 **IDE 半自动链式推进**：主 Agent 按每阶段 prompt 拉子 Agent，子 Agent 完成后再次运行上表命令；runner 会按阶段产物继续推进。**仅当用户明确要求 CLI** 时才加 `--auto` 或 `--cli`（后台，见 `workspace/artifacts/logs/`）。
+**默认行为（`--ide-chain`）**：Hook 用 **Task followup** 链式推进，子 Agent 在 **侧栏可见**。主 Agent **不得**擅自加 `--auto`（脚本会拒绝，见下方维护者小节）。
 
 产品打回后：
 
@@ -56,19 +46,28 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ./orchestrators/cursor/run-pipeline.sh --from-stage prd-analyze
 ```
 
-说「**帮我跑 QA Agent**」时，主 Agent 应执行上表命令（勿默认 `--auto`）；Cursor 下 Hook 还会在阶段结束时自动启动下一子 Agent。
+在 Cursor 里说「启动 QA 流水线」时，主 Agent 应执行上述命令；Hook 也会在阶段结束时自动启动下一子 Agent。
 
-<details><summary>维护者选项（用户可忽略）</summary>
+<details><summary>维护者：无头 CLI（用户未要求时勿用）</summary>
+
+Cursor 后台 `cursor agent` 须**显式放行**，否则 exit 1：
+
+```bash
+QA_PIPELINE_ALLOW_CLI=1 ./orchestrators/cursor/run-pipeline.sh --auto --allow-cli
+```
 
 | 标志 | 说明 |
 |------|------|
 | `--dry-run` | 只生成 prompt，不拉起子 Agent |
 | `--execute` | 只校验已有产物 |
 | `--ide` | 仅轮询产物（不自动 launch，旧模式） |
+| `--allow-cli` | 与 `--auto` 同用，表示用户/维护者确认走 CLI |
+
+硬约束规则：`.cursor/rules/qa-pipeline-no-auto-cli.mdc`（`alwaysApply`）
 
 </details>
 
-**认证（`--auto` 前必做）**
+**认证（维护者 `--auto` 前必做）**
 
 ```bash
 # Cursor
@@ -88,11 +87,16 @@ codex login
 
 Cursor **没有**公开 API 从终端直接打开 Composer 窗口，但可用 **Hooks + Task 子 Agent** 在 IDE 内自动链式推进：
 
-1. 项目已配置 [`.cursor/hooks.json`](.cursor/hooks.json)（`run-pipeline.sh` 激活后 Hook 才推进；**仅子 Agent 结束 `subagentStop`** 链式推进，主会话 `stop` 不会突然注入 prd-gate）
-2. 在 Composer 中说：**「帮我跑 QA Agent」**（见 [qa-pipeline-ide-auto](.cursor/rules/qa-pipeline-ide-auto.mdc)、[AGENTS.md](AGENTS.md)）
-3. 用 **Task** 跑各阶段 prompt；**子 Agent 结束后** Hook 自动提交下一阶段 follow-up
+1. 项目已配置 [`.cursor/hooks.json`](.cursor/hooks.json)（`run-pipeline.sh` 激活后 Hook 链式推进；`loop_limit: null`）
+2. 在 Composer 中说：**「启动 QA 流水线」** 即可——主 Agent **默认**只跑一条 `run-pipeline.sh`，**不会**在同一轮手动连开三个 Task（见 [qa-pipeline-ide-auto](.cursor/rules/qa-pipeline-ide-auto.mdc)）
+3. 各阶段子 Agent 由 Hook **followup** 自动拉起；侧栏可见完整过程
 
-你会在 IDE 里**看到**每个 Task 子 Agent 的执行过程，而不是终端黑盒。
+### 其他模式（非默认）
+
+| 模式 | 命令 | 说明 |
+|------|------|------|
+| 轮询 | `./orchestrators/cursor/run-pipeline.sh --ide` | Hook 不可用时备选 |
+| 无头 CLI | `QA_PIPELINE_ALLOW_CLI=1 ... --auto --allow-cli` | 维护者；侧栏不可见 |
 
 **终端轮询备选（仍可见 prompt，需手动 Composer）：**
 
@@ -100,23 +104,17 @@ Cursor **没有**公开 API 从终端直接打开 Composer 窗口，但可用 **
 ./orchestrators/cursor/run-pipeline.sh --ide
 ```
 
-**只有 IDE 账号、CLI 需单独登录：**
+**维护者无头 CLI（Cursor，侧栏不可见）：**
 
 ```bash
-cursor agent login   # 浏览器 OAuth，仍无需 API Key
-./orchestrators/cursor/run-pipeline.sh --auto   # 终端 cursor agent -p，IDE 内不可见
+cursor agent login
+QA_PIPELINE_ALLOW_CLI=1 ./orchestrators/cursor/run-pipeline.sh --auto --allow-cli
 ```
 
-**自动 CLI 模式（需 `cursor agent login` 或 API Key）**
+**Codex / Claude Code 无 IDE Hook，默认可 `--auto`：**
 
 ```bash
-# Cursor — 使用 cursor agent -p
-./orchestrators/cursor/run-pipeline.sh --auto
-
-# Codex — 使用 codex exec
 ./orchestrators/codex/run-pipeline.sh --auto
-
-# Claude Code — 使用 claude -p
 ./orchestrators/claude-code/run-pipeline.sh --auto
 ```
 
@@ -124,10 +122,9 @@ cursor agent login   # 浏览器 OAuth，仍无需 API Key
 
 ```bash
 export QA_AGENT_YOLO=1
+export QA_PIPELINE_ALLOW_CLI=1
 ./orchestrators/codex/run-pipeline.sh --auto
 ```
-
-`QA_AGENT_YOLO=1` 会让 Codex 使用 `--dangerously-bypass-approvals-and-sandbox`，让 Claude Code 使用危险跳过权限参数。只应在外部已隔离的维护者环境使用，普通 IDE 模式不要开启。
 
 **手动 / dry-run**
 
@@ -160,24 +157,32 @@ python3 scripts/validate-artifacts.py --stage prd-analyze
 
 **主 Agent**：[`agents/qa-orchestrator.md`](agents/qa-orchestrator.md)
 
-1. **prd-analyze**（**子 Agent 全文必读**）→ 蓝图 + **`00-test-obligations.json`（TOG）**；每条 `SC-xxx` 映射 `covers_obligations`。xlarge ≥80 场景
-2. **prd-gate**（TOG 校验 + **产品/研发/测试** 三评审 + **红队** + 归并）→ `00-prd-gate-report.json`  
-   - `audience=product` → `prd-reject-to-product.md`  
-   - 仅 `internal`（QA 漏设计/假覆盖）→ `test-point-rework-to-qa.md`，自动回 **prd-analyze**  
-   - pass → `prd-gate-pass-to-product.md`  
-   - `--auto` 顺序拉起 4 个评审子 Agent + gatekeeper；IDE 见 `workspace/artifacts/prompts/prd-gate*.md`
-3. **case-generate** → 从蓝图渲染 `02-test-cases.md`（`scripts/render_cases_from_blueprint.py`，不增删场景）
-4. **case-review** → `03-review-report.json`（fail 最多重试 2 次，否则主 Agent 升级人工）
-5. **test-execute** → `04-execution-result.json`；有失败时同阶段写 `05b-bug-list.md`
-6. **script-convert**（仅有 pass）→ `05a-scripts/`
+1. **prd-analyze**（**子 Agent 全文必读**）→ 脚本只生成 GT 知识库目录清单，子 Agent 结合 PRD/Figma 自主选择相关知识库，产出 `00-test-blueprint.json/md`：需求 → 测试点 → 测试范围 → 具体场景。
+2. **case-generate** → 从蓝图渲染 `02-test-cases.md`（XMind 可导入层级 Markdown：`##` 模块 → `### TC-NNN` → `-` 属性；`scripts/render_cases_from_blueprint.py`）。
+
+**确定性增强（脚本层）**
+
+| 能力 | 说明 |
+|------|------|
+| ① 返工核销 | 内部 reject 后写入 `.pending-rework-issues.json`；下次 prd-analyze 须补全，否则 validate 失败 |
+| ② 蓝图模板 | `config.yaml` → `required_coverage` 强制 In Scope 子类目场景数 |
+| ③ 评审预检 | case-review 时生成 `case-review-precheck.json`（GATE-xxx）；pass 不得忽略 |
+| ④ 快照 | `python3 scripts/snapshot_blueprint.py save` / `compare` / `list` |
+
+```bash
+python3 scripts/snapshot_blueprint.py save --label baseline
+python3 scripts/snapshot_blueprint.py compare <旧快照名>
+```
+3. **case-review** → 唯一质量门禁，输出 `03-review-report.json/md`；**之后由主 Agent 决策**（脚本不自动回跑 prd-analyze）：
+   - **内部问题**（蓝图/用例）：主 Agent 判断是否 Task 再跑 prd-analyze，修正后重走 generate→review，直至仅剩产品问题或 pass。
+   - **仅剩产品问题**：停流水线，交 `prd-reject-to-product.md` 给产品。
+   - **pass**：进入执行阶段。
+4. **test-execute** → `04-execution-result.json`；有失败时同阶段写 `05b-bug-list.md`。
+5. **script-convert**（仅有 pass）→ `05a-scripts/`。
 
 ## 子 Agent 与 Skill
 
 每个阶段由独立子 Agent 执行，具体步骤在对应 Skill 中定义（`skills/<name>/SKILL.md`）。Figma 五层分析见 `skills/prd-analyze/reference-figma-analysis.md`；可先运行 `python3 scripts/prefetch_figma_snapshot.py`。
-
-`01-prd-analysis.json` 是从 `00-test-ready-blueprint.json` 同步出的兼容摘要；门禁与用例生成以蓝图和 `00-test-obligations.json` 为准。
-
-主 Agent 不应代写阶段产物。技术兜底包括：蓝图必须声明 `delivery_coverage.executed_by=prd-analyzer-subagent`，gate 前会校验全文分析 marker，prompt 也要求子 Agent 只完成本阶段、不进入下一阶段。
 
 ## 断点续跑
 
@@ -190,6 +195,4 @@ python3 scripts/validate-artifacts.py --stage prd-analyze
 ## 开发说明
 
 - 修改 Skill 后运行 `./scripts/sync-skills.sh`
-- 当前核心 Skill 已包含可执行流程；新增/修改阶段时请同步更新 `pipeline.yaml`、`agents/`、`skills/`、`contracts/` 与自测。
-- `workspace/artifacts/` 是运行时目录，不是稳定样例；需要样例时请放入单独 fixtures 目录。
-- `.gitignore` 已排除运行产物、用户输入、env 与日志；如果把本目录初始化为 Git 仓库或复制到其他仓库，请确认这些规则仍然生效。
+- Phase 1/2 Skill 内容为占位，由你后续填充 MCP 与具体流程

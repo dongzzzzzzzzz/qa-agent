@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa-agent/case-review-findings",
+  "title": "Case Review Perspective Findings",
+  "type": "object",
+  "required": [
+    "version",
+    "perspective",
+    "reviewed_at",
+    "brief_ref",
+    "knowledge_docs_read",
+    "perspective_notes",
+    "issues",
+    "extra_notes",
+    "verdict",
+    "finding_count"
+  ],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "perspective": { "enum": ["structural", "product", "qa", "testability", "red_team"] },
+    "reviewed_at": { "type": "string", "format": "date-time" },
+    "brief_ref": { "type": "string", "minLength": 1 },
+    "knowledge_docs_read": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "perspective_notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question_id", "verdict", "rationale"],
+        "properties": {
+          "question_id": { "type": "string", "minLength": 3 },
+          "verdict": { "enum": ["pass", "fail", "blocked", "not_applicable"] },
+          "rationale": { "type": "string", "minLength": 1 },
+          "knowledge_ref": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "category",
+          "root_cause",
+          "audience",
+          "retry_target",
+          "description",
+          "evidence",
+          "suggestion"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^(CR|GATE)-[0-9]{3}$" },
+          "severity": { "enum": ["blocker", "major", "minor"] },
+          "category": { "type": "string", "minLength": 1 },
+          "root_cause": {
+            "enum": ["prd", "figma", "assumption_unresolved", "qa_undercoverage", "case_generation"]
+          },
+          "audience": { "enum": ["product", "internal"] },
+          "retry_target": { "enum": ["product", "prd-analyze", "case-generate", "human"] },
+          "description": { "type": "string", "minLength": 10 },
+          "evidence": { "type": "object", "minProperties": 1, "additionalProperties": true },
+          "suggestion": { "type": "string", "minLength": 10 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "extra_notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["note"],
+        "properties": {
+          "note": { "type": "string", "minLength": 1 },
+          "rationale": { "type": "string" },
+          "knowledge_ref": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "verdict": { "enum": ["pass", "fail"] },
+    "finding_count": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": true
+}

@@ -1,13 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "qa-agent/review-report",
-  "title": "Test Case Review Report",
+  "title": "Case Review Gate Report",
   "type": "object",
-  "required": ["version", "reviewed_at", "verdict", "coverage_score", "gaps", "revision_hints"],
+  "required": ["version", "reviewed_at", "verdict", "coverage_score", "issues", "revision_hints"],
   "properties": {
     "version": { "type": "string", "const": "1.0" },
     "reviewed_at": { "type": "string", "format": "date-time" },
-    "verdict": { "enum": ["pass", "fail"] },
+    "verdict": { "enum": ["pass", "reject"] },
+    "reject_kind": {
+      "enum": ["product", "internal", "mixed"],
+      "description": "product=打回产品; internal=QA 内部返工; mixed=两者皆有"
+    },
+    "summary": { "type": "string", "minLength": 1 },
     "coverage_score": { "type": "number", "minimum": 0, "maximum": 1 },
     "coverage_matrix": {
       "type": "object",
@@ -19,11 +24,186 @@
         "compatibility": { "type": "number" }
       }
     },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "category",
+          "root_cause",
+          "audience",
+          "retry_target",
+          "description",
+          "evidence",
+          "suggestion"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^(CR|GATE)-[0-9]{3}$" },
+          "severity": { "enum": ["blocker", "major", "minor"] },
+          "category": { "type": "string", "minLength": 1 },
+          "root_cause": {
+            "enum": ["prd", "figma", "assumption_unresolved", "qa_undercoverage", "case_generation"]
+          },
+          "audience": { "enum": ["product", "internal"] },
+          "retry_target": { "enum": ["product", "prd-analyze", "case-generate", "human"] },
+          "blocking": { "type": "boolean" },
+          "dimension": {
+            "enum": [
+              "acceptance",
+              "coverage",
+              "testability",
+              "red_team",
+              "case_fidelity",
+              "delivery"
+            ]
+          },
+          "module_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^M-[0-9]{2}$" }
+          },
+          "point_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^TP-[0-9]{2}\\.[0-9]{2}$" }
+          },
+          "scenario_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^S-[0-9]{2}\\.[0-9]{2}\\.[0-9]{2}$" }
+          },
+          "case_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^TC-[0-9]{3}$" }
+          },
+          "description": { "type": "string", "minLength": 10 },
+          "evidence": {
+            "type": "object",
+            "minProperties": 1,
+            "properties": {
+              "prd_section": { "type": "string" },
+              "figma_ref": { "type": "string" },
+              "blueprint_ref": { "type": "string" },
+              "case_ref": { "type": "string" },
+              "quoted_problem": { "type": "string" }
+            },
+            "additionalProperties": true
+          },
+          "suggestion": { "type": "string", "minLength": 10 }
+        },
+        "additionalProperties": true
+      }
+    },
     "gaps": { "type": "array", "items": { "type": "string" } },
     "duplicate_cases": { "type": "array", "items": { "type": "string" } },
     "revision_hints": { "type": "array", "items": { "type": "string" } },
     "approved_case_count": { "type": "integer", "minimum": 0 },
+    "perspective_brief_ref": { "type": "string" },
+    "finding_count_raw": { "type": "integer", "minimum": 0 },
+    "finding_count_merged": { "type": "integer", "minimum": 0 },
+    "structural": {
+      "type": "object",
+      "properties": {
+        "verdict": { "enum": ["pass", "fail"] },
+        "finding_count": { "type": "integer", "minimum": 0 },
+        "source": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "perspective_notes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "extra_notes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "knowledge_evidence_summary": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "docs_read": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "note_count": { "type": "integer", "minimum": 0 },
+          "extra_note_count": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "tri_party": {
+      "type": "object",
+      "properties": {
+        "product": {
+          "type": "object",
+          "properties": {
+            "verdict": { "enum": ["pass", "fail"] },
+            "finding_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "qa": {
+          "type": "object",
+          "properties": {
+            "verdict": { "enum": ["pass", "fail"] },
+            "finding_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "testability": {
+          "type": "object",
+          "properties": {
+            "verdict": { "enum": ["pass", "fail"] },
+            "finding_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "red_team": {
+          "type": "object",
+          "properties": {
+            "verdict": { "enum": ["pass", "fail"] },
+            "finding_count": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "false_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["blueprint_ref", "reason"],
+        "properties": {
+          "blueprint_ref": { "type": "string" },
+          "case_ref": { "type": "string" },
+          "reason": { "type": "string", "minLength": 5 }
+        }
+      }
+    },
     "notes": { "type": "string" }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": { "properties": { "verdict": { "const": "reject" } }, "required": ["verdict"] },
+      "then": {
+        "required": ["reject_kind", "summary"],
+        "properties": {
+          "issues": { "minItems": 1 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "verdict": { "const": "pass" } }, "required": ["verdict"] },
+      "then": {
+        "required": ["summary"],
+        "properties": {
+          "issues": { "maxItems": 0 }
+        }
+      }
+    }
+  ]
 }

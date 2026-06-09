@@ -1,0 +1,224 @@
+name: QA Agent Multi-Agent Pipeline
+description: >
+  Cursor/Codex/Claude Code orchestrated QA pipeline. Input PRD + Figma,
+  output test blueprint, cases, review report, execution results, scripts or bug list.
+
+components:
+  - name: User
+    type: external
+    description: QA engineer or product owner triggering the pipeline
+
+  - name: QA Orchestrator
+    type: service
+    technology: Cursor Main Agent
+    replicas: 1
+    description: Single user-facing orchestrator; runs run-pipeline.sh, makes stop/retry decisions
+
+  - name: Cursor Hooks
+    type: gateway
+    technology: .cursor/hooks.json + qa-pipeline-next.sh
+    replicas: 1
+    description: stop/subagentStop events inject Task followup to chain sub-agents
+
+  - name: Pipeline Runner
+    type: service
+    technology: orchestrators/cursor/run-pipeline.sh + scripts/pipeline_runner.py
+    replicas: 1
+    description: Stage activation, prompt generation, artifact validation, meta.json updates
+
+  - name: PRD Analyzer
+    type: service
+    technology: prd-analyzer sub-agent + prd-analyze skill
+    replicas: 1
+    description: Full PRD/Figma read, knowledge base selection, test blueprint generation
+
+  - name: Case Generator
+    type: service
+    technology: case-generator sub-agent + case-generate skill
+    replicas: 1
+    description: Renders 02-test-cases.md from 00-test-blueprint.json
+
+  - name: Case Reviewer
+    type: service
+    technology: case-reviewer sub-agent + case-review skill
+    replicas: 1
+    description: Case-review orchestrator; structural review, nested four-perspective Tasks, merge report
+
+  - name: Case Review Perspective Agents
+    type: service
+    technology: product / qa / testability / red_team nested Task sub-agents
+    replicas: 4
+    description: Independent perspective findings under one external case-review stage
+
+  - name: Test Executor
+    type: service
+    technology: test-executor sub-agent + test-execute skill
+    replicas: 1
+    description: Executes test cases via Playwright/MCP; outputs execution-result and bug list
+
+  - name: Script Converter
+    type: service
+    technology: script-converter sub-agent + script-convert skill
+    replicas: 1
+    description: Converts passed cases to automation scripts (post-process branch)
+
+  - name: Artifact Store
+    type: storage
+    technology: workspace/artifacts/
+    replicas: 1
+    description: JSON/Markdown stage outputs, logs, meta.json, pending-rework-issues
+
+  - name: Input Store
+    type: storage
+    technology: workspace/inputs/
+    replicas: 1
+    description: prd.md, figma.url, config.yaml, env.json
+
+  - name: Knowledge Base
+    type: database
+    technology: bundled/knowledge_base/
+    replicas: 1
+    description: Business rules, test case templates, domain knowledge graphs
+
+  - name: JSON Schema Contracts
+    type: storage
+    technology: contracts/
+    replicas: 1
+    description: test-blueprint, review-report, execution-result schemas
+
+  - name: Figma MCP
+    type: external
+    technology: Figma MCP Server
+    replicas: 1
+    description: Design snapshot and UI analysis for prd-analyze and test-execute
+
+  - name: Playwright MCP
+    type: external
+    technology: Playwright MCP Server
+    replicas: 1
+    description: Browser automation for test-execute stage
+
+  - name: Codex Orchestrator
+    type: service
+    technology: orchestrators/codex/run-pipeline.sh
+    replicas: 1
+    description: Headless CLI auto mode alternative to Cursor ide-chain
+
+  - name: Claude Code Orchestrator
+    type: service
+    technology: orchestrators/claude-code/run-pipeline.sh
+    replicas: 1
+    description: Headless CLI auto mode alternative to Cursor ide-chain
+
+connections:
+  - from: User
+    to: QA Orchestrator
+    protocol: natural language / IDE chat
+
+  - from: QA Orchestrator
+    to: Pipeline Runner
+    protocol: shell (run-pipeline.sh)
+
+  - from: Pipeline Runner
+    to: Cursor Hooks
+    protocol: activate ide-chain + write 00-meta.json
+
+  - from: Cursor Hooks
+    to: PRD Analyzer
+    protocol: Task followup prompt
+
+  - from: PRD Analyzer
+    to: Input Store
+    protocol: read
+
+  - from: PRD Analyzer
+    to: Knowledge Base
+    protocol: read
+
+  - from: PRD Analyzer
+    to: Figma MCP
+    protocol: MCP
+
+  - from: PRD Analyzer
+    to: Artifact Store
+    protocol: write (00-test-blueprint.json)
+
+  - from: Cursor Hooks
+    to: Case Generator
+    protocol: Task followup prompt
+
+  - from: Case Generator
+    to: Artifact Store
+    protocol: read blueprint, write 02-test-cases.md
+
+  - from: Cursor Hooks
+    to: Case Reviewer
+    protocol: Task followup prompt
+
+  - from: Case Reviewer
+    to: Input Store
+    protocol: read prd, figma
+
+  - from: Case Reviewer
+    to: Artifact Store
+    protocol: write brief, lock, five findings, merged review report, pending-rework-issues
+
+  - from: Case Reviewer
+    to: Case Review Perspective Agents
+    protocol: nested Task prompts (serial P0)
+
+  - from: Case Review Perspective Agents
+    to: Artifact Store
+    protocol: write case-review-findings-{product,qa,testability,red-team}.json
+
+  - from: Cursor Hooks
+    to: Artifact Store
+    protocol: read .case-review-orchestrating.lock; suppress duplicate case-review followup while active
+
+  - from: Case Reviewer
+    to: JSON Schema Contracts
+    protocol: validate
+
+  - from: Case Reviewer
+    to: Cursor Hooks
+    protocol: INTERNAL_REWORK triggers prd-analyze retry chain
+
+  - from: Cursor Hooks
+    to: Test Executor
+    protocol: Task followup (only on review pass)
+
+  - from: Test Executor
+    to: Playwright MCP
+    protocol: MCP
+
+  - from: Test Executor
+    to: Figma MCP
+    protocol: MCP
+
+  - from: Test Executor
+    to: Artifact Store
+    protocol: write execution-result, bug-list
+
+  - from: Pipeline Runner
+    to: Script Converter
+    protocol: post-process when execution.has_pass
+
+  - from: Script Converter
+    to: Artifact Store
+    protocol: write 05a-scripts/
+
+  - from: User
+    to: Codex Orchestrator
+    protocol: CLI --auto
+
+  - from: User
+    to: Claude Code Orchestrator
+    protocol: CLI --auto
+
+  - from: Codex Orchestrator
+    to: PRD Analyzer
+    protocol: headless agent CLI
+
+  - from: Claude Code Orchestrator
+    to: PRD Analyzer
+    protocol: headless agent CLI

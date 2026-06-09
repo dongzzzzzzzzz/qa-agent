@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa-agent/case-review-perspective-brief",
+  "title": "Case Review Perspective Brief",
+  "type": "object",
+  "required": ["version", "generated_at", "perspectives", "knowledge_reading_list"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "perspectives": {
+      "type": "object",
+      "required": ["product", "qa", "testability", "red_team"],
+      "properties": {
+        "product": { "$ref": "#/$defs/perspective_brief" },
+        "qa": { "$ref": "#/$defs/perspective_brief" },
+        "testability": { "$ref": "#/$defs/perspective_brief" },
+        "red_team": { "$ref": "#/$defs/perspective_brief" }
+      },
+      "additionalProperties": false
+    },
+    "knowledge_reading_list": {
+      "type": "object",
+      "required": ["product", "qa", "testability", "red_team"],
+      "properties": {
+        "product": { "$ref": "#/$defs/knowledge_list" },
+        "qa": { "$ref": "#/$defs/knowledge_list" },
+        "testability": { "$ref": "#/$defs/knowledge_list" },
+        "red_team": { "$ref": "#/$defs/knowledge_list" }
+      },
+      "additionalProperties": false
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "question_count": { "type": "integer", "minimum": 0 },
+        "anchored_question_count": { "type": "integer", "minimum": 0 },
+        "anchored_question_ratio": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "perspective_brief": {
+      "type": "object",
+      "required": ["perspective", "questions"],
+      "properties": {
+        "perspective": { "enum": ["product", "qa", "testability", "red_team"] },
+        "focus": { "type": "string" },
+        "questions": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/question" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "question": {
+      "type": "object",
+      "required": ["id", "question"],
+      "properties": {
+        "id": { "type": "string", "minLength": 3 },
+        "question": { "type": "string", "minLength": 8 },
+        "rationale": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "point_id": { "type": "string" },
+        "module_id": { "type": "string" },
+        "obligation_id": { "type": "string" },
+        "knowledge_refs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "knowledge_list": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "usage": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

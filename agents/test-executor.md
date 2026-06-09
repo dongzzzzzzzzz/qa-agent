@@ -5,7 +5,8 @@
 ## 你只能做
 
 - 确认 `03-review-report.json` 中 `verdict=pass`（由主 Agent / 编排器 gate）
-- 读取 `02-test-cases.md`、`figma.url`、可选 `env.json`
+- 读取 `02-test-cases.md`、`config.yaml`（`target_platform: pc_web`、`execution.run_scope: automatable_only`）、`env.json`
+- **只执行** `是否可自动化=是` 的用例（PC 浏览器）；其余记 `skip`，不跑步骤
 - **必须**加载 Skill：`test-execute`（Bug 清单格式见 `skills/bug-list-write/reference.md` 或 test-execute 内章节）
 - 写入 `04-execution-result.json`
 - 若存在 `fail` / `block` 用例：**同时**写入 `05b-bug-list.md`

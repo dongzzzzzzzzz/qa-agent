@@ -6,14 +6,14 @@ project: qa-agent
 # 主 Agent：编排与决策（见 agents/qa-orchestrator.md）
 orchestrator:
   agent: qa-orchestrator
-  # 对用户口令：「帮我跑 QA Agent」；默认 --ide-chain（IDE），非 --auto（CLI）
-  user_phrase: 帮我跑 QA Agent
+  # 对用户：只说「启动流水线」；Cursor 默认 ide-chain（Hook+Task），禁止未放行的 --auto
   auto_launch_subagents: true
-  default_mode: ide-chain
+  default_launch_mode: ide-chain
+  cursor_cli_requires: allow-cli  # QA_PIPELINE_ALLOW_CLI=1 或 --allow-cli
   default_entry: orchestrators/cursor/run-pipeline.sh
   decisions:
-    prd_gate_reject: stop_and_notify_product
-    case_review_fail: retry_case_generate
+    case_review_product_reject: stop_and_notify_product
+    case_review_internal_reject: auto_retry_prd_analyze_then_orchestrator_check
     case_review_fail_max: escalate_human
     test_has_pass: run_script_convert
     test_has_fail: bug_list_in_test_execute
@@ -43,73 +43,75 @@ stages:
   - id: prd-analyze
     agent: prd-analyzer
     skill: prd-analyze
-    contract: contracts/prd-analysis.schema.json
+    contract: contracts/test-blueprint.schema.json
     inputs:
+      - workspace/inputs/config.yaml
       - workspace/inputs/prd.md
       - workspace/inputs/figma.url
+      - bundled/knowledge_base/README.md
     outputs:
-      - workspace/artifacts/00-test-ready-blueprint.json
-      - workspace/artifacts/00-test-obligations.json
-      - workspace/artifacts/01-prd-analysis.json
-      - workspace/artifacts/test-ready-internal.md
-    output: workspace/artifacts/01-prd-analysis.json
-
-  - id: prd-gate
-    agent: prd-gatekeeper
-    skill: prd-gate
-    contract: contracts/prd-gate-report.schema.json
-    depends_on:
-      - prd-analyze
-    prerequisite_script: scripts/analyze_gate_prerequisites.py
-    prerequisite_note: analyze 全文校验未通过时禁止 gate 与 prd-reject-to-product.md
-    inputs:
-      - workspace/inputs/prd.md
-      - workspace/inputs/figma.url
-      - workspace/artifacts/00-test-ready-blueprint.json
-      - workspace/artifacts/00-test-obligations.json
-      - workspace/artifacts/01-prd-analysis.json
-    outputs:
-      - workspace/artifacts/00-prd-gate-report.json
-      - workspace/artifacts/gate-findings-product.json
-      - workspace/artifacts/gate-findings-dev.json
-      - workspace/artifacts/gate-findings-qa.json
-      - workspace/artifacts/gate-findings-red-team.json
-      - workspace/artifacts/prd-gate-pass-to-product.md
-      - workspace/artifacts/prd-reject-to-product.md
-      - workspace/artifacts/test-point-rework-to-qa.md
-    output: workspace/artifacts/00-prd-gate-report.json
-    on_fail:
-      verdict: reject
-      action: stop_pipeline
-      notify: workspace/artifacts/prd-reject-to-product.md
-      retry_from: prd-analyze
+      - workspace/artifacts/00-knowledge-inventory.json
+      - workspace/artifacts/00-knowledge-inventory.md
+      - workspace/artifacts/00-knowledge-context.json
+      - workspace/artifacts/00-knowledge-context.md
+      - workspace/artifacts/00-test-blueprint.json
+      - workspace/artifacts/00-test-blueprint.md
+    output: workspace/artifacts/00-test-blueprint.json
 
   - id: case-generate
     agent: case-generator
     skill: case-generate
-    gate: prd_gate.pass
     depends_on:
-      - prd-gate
+      - prd-analyze
     inputs:
-      - workspace/artifacts/00-test-ready-blueprint.json
-      - workspace/artifacts/01-prd-analysis.json
+      - workspace/inputs/config.yaml
+      - workspace/artifacts/00-test-blueprint.json
     output: workspace/artifacts/02-test-cases.md
 
   - id: case-review
     agent: case-reviewer
     skill: case-review
     contract: contracts/review-report.schema.json
-    gate: prd_gate.pass
     depends_on:
-      - prd-gate
+      - prd-analyze
       - case-generate
     inputs:
-      - workspace/artifacts/00-test-ready-blueprint.json
+      - workspace/inputs/config.yaml
+      - workspace/inputs/prd.md
+      - workspace/inputs/figma.url
+      - workspace/artifacts/00-test-blueprint.json
+      - workspace/artifacts/00-test-blueprint.md
       - workspace/artifacts/02-test-cases.md
+      - workspace/artifacts/00-knowledge-context.json
+      - workspace/artifacts/00-knowledge-context.md
+      - workspace/artifacts/00-test-data.json
+    outputs:
+      - workspace/artifacts/case-review-precheck.json
+      - workspace/artifacts/prd-coverage-matrix.json
+      - workspace/artifacts/case-review-perspective-brief.json
+      - workspace/artifacts/case-review-perspective-brief.md
+      - workspace/artifacts/case-review-findings-structural.json
+      - workspace/artifacts/case-review-findings-product.json
+      - workspace/artifacts/case-review-findings-qa.json
+      - workspace/artifacts/case-review-findings-testability.json
+      - workspace/artifacts/case-review-findings-red-team.json
+      - workspace/artifacts/03-review-report.json
+      - workspace/artifacts/03-review-report.md
     output: workspace/artifacts/03-review-report.json
     on_fail:
-      retry_stage: case-generate
-      max_retries: 2
+      product_reject:
+        root_causes: [prd, figma, assumption_unresolved]
+        notify: workspace/artifacts/prd-reject-to-product.md
+        retry_from: prd-analyze
+      blueprint_rework:
+        root_causes: [qa_undercoverage]
+        notify: workspace/artifacts/test-point-rework-to-qa.md
+        retry_stage: prd-analyze
+      case_generation_rework:
+        root_causes: [case_generation]
+        notify: workspace/artifacts/test-point-rework-to-qa.md
+        retry_stage: prd-analyze
+      max_retries: 3
       hint_field: revision_hints
       escalate: orchestrator
 

@@ -1,0 +1,23 @@
+# 复制为 execution-prerequisites.yaml 并填写（项目启动或 prd-analyze 前）
+# 蓝图/用例生成后，子 Agent 对照此文件与蓝图 test_data，缺项写入 open_questions 或 case-review internal issues
+
+environment:
+  base_url: "https://www.unicorn.gumtree.io/"  # 与 env.json 一致
+  platform: web
+  viewport: desktop
+
+auth:
+  test_account_email: ""      # 需登录的场景
+  test_account_password: ""  # 勿提交 git；本地或 CI secret
+
+browser_automation:
+  cookie_banner_action: "Accept all"   # 首页 Cookie 文案
+  feed_list_route_pattern: "**/feed**" # api_intercept 拦截片段，与 BFF 对齐后填写
+  property_card_locator_hint: ""         # 可选 data-testid / role
+
+fixtures:
+  feed_mock_dir: "workspace/fixtures/feed"  # api_intercept 用 JSON 目录
+
+product_closed:
+  ab_bucket_cookie: ""        # A/B 闭合后填写；TBD 时 TC 标 manual + 否
+  figma_file_url: ""          # 非 PLACEHOLDER 的设计稿链接

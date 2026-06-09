@@ -1,10 +1,18 @@
 # Runtime workspace (user inputs & pipeline artifacts)
 workspace/artifacts/
+workspace/projects/
 workspace/inputs/*.md
 workspace/inputs/*.url
 workspace/inputs/env.json
+workspace/inputs/config.yaml
+workspace/inputs/execution-prerequisites.yaml
 !workspace/inputs/.gitkeep
 !workspace/artifacts/.gitkeep
+
+# Local investigation notes / generated reports
+reports/
+REVIEW-NOTES.md
+prompt.md
 
 # Synced platform skills (generated from skills/)
 .cursor/skills/

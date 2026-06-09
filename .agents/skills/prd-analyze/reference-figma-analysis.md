@@ -1,6 +1,6 @@
 # Figma 深度分析（prd-analyze）
 
-> 改编自 senior-qa-brain 五层框架，输出落到 `00-test-ready-blueprint.json`，不是独立 Markdown 报告。
+> 改编自 senior-qa-brain 五层框架，输出落到唯一测试蓝图，不是独立 Markdown 报告。
 
 ## 何时读本文
 
@@ -23,17 +23,17 @@
 
 ```
 Figma URL
-  → 第1层 结构 → modules[]、figma_mapping[]、frames_inventory[]
-  → 第2层 交互 → field_rules[]、scenarios[]（figma_ref）
-  → 第3层 数据 → field_rules[]、api_endpoints[]
-  → 第4层 边界 → scenarios[]（type=边界/异常）
-  → 第5层 隐藏需求 → api_endpoints[]、assumptions[]（勿写 blocking_gaps）
+  → 第1层 结构 → 需求模块、测试范围
+  → 第2层 交互 → 测试点、场景步骤、预期结果
+  → 第3层 数据 → 测试数据、状态组合
+  → 第4层 边界 → 边界/异常场景
+  → 第5层 隐藏需求 → 待产品确认问题或风险场景
 ```
 
 ### 第1层：结构（约 15% 精力）
 
 - 识别页面/模块分组、导航关系、共用组件与变体。
-- 填入 `delivery_coverage.figma.frames_inventory[]`，每项建议字段：
+- 分析页面结构时记录以下信息，并落到相关模块、测试点或场景的 `source_refs`：
 
 | 字段 | 说明 |
 |------|------|
@@ -44,21 +44,21 @@ Figma URL
 | `prd_section` | 对应 PRD 章节，如 `§3.1 筛选` |
 | `elements_summary` | 一句话：主要控件（搜索框、表格、弹窗等） |
 
-- 同步 `figma_mapping[]`：`prd_section` ↔ `figma_ref`（URL 或 `fileKey/nodeId`）。
+- 将 Figma Frame 与 PRD 来源写进 `source_refs`，便于 case-review 对照。
 
 ### 第2层：交互（约 20% 精力）
 
 - 枚举表单控件：输入框、下拉、按钮、开关、上传等。
 - 从文案推断规则（如「8-20 位密码」）→ `field_rules[]`。
 - 识别状态机：Default → Loading → Success/Error；Disabled 前置条件。
-- 每个可测交互点至少 1 条 `scenarios[]`，`source: figma`，带 `figma_ref`。
+- 每个可测交互点至少落到 1 个场景，并在 `source_refs` 标出 Figma 来源。
 
 常见状态命名（Figma）：Default、Hover、Active、Disabled、Loading、Empty、Error。
 
 ### 第3层：数据（约 15% 精力）
 
 - 从字段标签/占位符/帮助文案提取：字段名、类型、必填、格式。
-- 写入 `field_rules[]`；接口形态写入 `api_endpoints[]`（列表页→GET，提交→POST）。
+- 写入测试点验收规则和场景测试数据；研发未开发前不审接口、日志、数据库、缓存。
 
 ### 第4层：边界（约 15% 精力）
 
@@ -66,13 +66,13 @@ Figma URL
 - 交互：快速连点、超时、网络失败（设计有提示则写场景，无则 assumption）。
 - 数据：最小/最大长度、特殊字符、枚举边界。
 
-对应 `scenarios[]`，`type` 为 `边界` 或 `异常`。
+对应场景的 `type` 可为 `边界` 或 `异常`。
 
 ### 第5层：隐藏需求（约 20% 精力）
 
-- 从设计推断：接口路径、按钮禁用规则、权限/会员差异。
-- 设计未画但 PRD 明文要求的 → 见 [reference-prd-figma-alignment.md](reference-prd-figma-alignment.md)，记入 `resolutions[]` 或 `assumptions[]`。
-- 风险（表单注入、XSS、频控等）→ `risks[]`。
+- 从设计推断：按钮禁用规则、权限/会员差异、空态/错误态。
+- 设计未画但 PRD 明文要求的 → 见 [reference-prd-figma-alignment.md](reference-prd-figma-alignment.md)，能测则写场景，不能测则写入 `open_questions[]`。
+- 风险（表单注入、XSS、频控等）→ 写成风险场景或待确认问题。
 
 ### 风险（约 15% 精力）
 
@@ -91,7 +91,7 @@ Figma URL
 【数据字段】
 | 字段 | 类型 | 必填 | 规则 |
 
-【待确认 → assumptions】
+【待确认 → open_questions】
 - ASM-xxx: ...
 ```
 
@@ -99,15 +99,15 @@ Figma URL
 
 | 情况 | `read_complete` | `frames_inventory` | 场景来源 |
 |------|-----------------|-------------------|----------|
-| 占位/无法打开链接 | `false` | `[]` 或仅 note | `source: prd` + assumption |
-| 真实链接且 MCP 读完 | `true` | 全量 Frame + 真实 node_id | `figma` / `prd` |
+| 占位/无法打开链接 | 在待确认问题写明 | 空 | PRD 来源场景 + UI 风险说明 |
+| 真实链接且 MCP 读完 | 无需单独字段 | 关键 Frame 写入来源 | Figma / PRD |
 
 ## 校验前自检（Figma 部分）
 
 - [ ] 每个 `frames_inventory[].node_id` 来自 MCP，非 PRD 页码代号
 - [ ] 主流程 + Empty/Error/Disabled 等关键态有 Frame 或 assumption 覆盖
-- [ ] `figma_mapping` 与 `sections_inventory` 可交叉索引
-- [ ] 占位 URL 时未设 `read_complete: true`
+- [ ] 关键 Frame 已写入相关测试点或场景来源
+- [ ] 占位 URL 时已在待确认问题写明影响
 
 ## 延伸阅读
 

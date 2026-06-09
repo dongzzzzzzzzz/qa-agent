@@ -1,0 +1,6 @@
+{
+  "migrated_at": "2026-04-17",
+  "source_repo": "gumtree-ui-agent-kb",
+  "source_commit": "0854c2c",
+  "destination": "bundled/knowledge_base/"
+}
